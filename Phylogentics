@@ -1,0 +1,72 @@
+---
+title: "FluPhylo"
+author: "Jacob Sigler"
+date: "12/3/2014"
+output: html_document
+---
+
+```{r DATA}
+require(ape)
+Flu<-read.dna(file='~/Bioinformatics_Notes/Phylogenetics/FluHStrains.mfa',
+              format='fasta'
+              )
+names(Flu)<-c('H1','H2','H3','H4','H5','H6','H7','H8','H9','H10','H11','H12','H13')
+```
+
+```{r MUSCLE}
+aln<-ape::muscle(Flu)
+```
+
+```{r Distance}
+require(phangorn)
+
+PhyFlu<-as.phyDat(x=aln)
+
+# Distance Matrix
+
+DistanceMatrix<-dist.ml(PhyFlu,model='JC69')
+DistanceMatrix
+
+#Make the UPGMA tree.
+
+treeUPGMA<-upgma(DistanceMatrix)
+
+```
+
+### Neighbor-Joining Tree
+
+```{r NJ}
+treeNJ<-NJ(DistanceMatrix)
+plot.phylo(treeNJ, type='unrooted',cex=0.8)
+
+
+title(main='Relationship Among Influenza Hemagglutinin Strains (NJ)')
+mtext(text='Jukes-Cantor 1969',font=3,line=0.5)
+```
+
+### Maximum Likelyhood Tree
+
+```{r ML}
+fitNJ<-pml(treeNJ,data=PhyFlu)
+fitNJ<-optim.pml(fitNJ,optNni=T)
+
+# Tree and bootstraps
+
+plot(fitNJ[['tree']],type='unrooted',cex=0.8)
+
+bsNJ<-bootstrap.pml(fitNJ,bs=100,optNni=T,control=pml.control(trace=0))
+plotBS(tree=fitNJ[['tree']],BStrees=bsNJ,type='unrooted',cex=0.8,bs.col='red')
+
+title(main='Relationship Among Influenza Hemagglutinin Strains (ML)')
+mtext(text='Jukes-Cantor 1969',font=3,line=0.5)
+```
+
+### Maximum Parsimony  
+
+```{r MP}
+treeRatchet<-pratchet(data=PhyFlu, trace=0)
+plot(treeRatchet,type='unrooted')
+
+title(main='Relationship Among Influenza Hemagglutinin Strains (MP)')
+mtext(text='Jukes-Cantor 1969',font=3,line=0.5)
+```
