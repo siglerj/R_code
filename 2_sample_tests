@@ -1,0 +1,123 @@
+---
+title: "Two Sample Tests"
+author: "Smitty"
+date: "10/14/2014"
+output: html_document
+---
+
+
+```{r Load Data}
+require(ISwR)
+data(tlc)
+
+Response<-with(tlc,tlc)
+Response_Male<-with(subset(tlc,subset=(sex==1)),tlc)
+Response_Female<-with(subset(tlc,subset=(sex==2)),tlc)
+```
+
+```{r NormalPrelim}
+#generate QQ plot for each
+
+qqnorm(Response_Male, col='blue')
+qqline(Response_Male,col='black',lty='dashed',lwd=3)
+
+qqnorm(Response_Female,col='blue')
+qqline(Response_Female,col='black',lty='dashed',lwd=3)
+
+#Looks pretty good, can look at data graphically as in a qq plot, but can make histograms
+
+hist(x=Response_Male,freq=FALSE,
+col='pink',
+main='Frequency Distrobution of Lung Capacity in Males',
+xlim=c(0,12), #sets boundaries of x axis
+ylim=c(0,0.25),
+xlab='TLC in Litres',
+ylab='Frequency in percent'
+)
+
+hist(x=Response_Female,freq=FALSE,
+col='pink',
+main='Frequency Distrobution of Lung Capacity in Females',
+xlim=c(0,12), #sets boundaries of x axis
+ylim=c(0,0.25),
+xlab='TLC in Litres',
+ylab='Frequency in percent'
+)
+
+#Superimpose normal distrobution over the histogram
+
+Slot<-seq(from=0,to=12,length=500)
+
+
+lines(x=Slot,
+y=dnorm(x=Slot,mean=mean(Response_Male),sd=sd(Response_Male)),
+lty='dashed',
+col='black')
+
+lines(x=Slot,
+y=dnorm(x=Slot,mean=mean(Response_Female),sd=sd(Response_Female)),
+lty='dashed',
+col='black')
+```
+
+```{r FormalNormalTest}
+#Formal tests of normality:
+
+require(e1071)
+require(nortest)
+
+#Tests we're going to do:
+
+Tests<-c('Anderson-Darling',
+'Cramer-von Mises',
+'Kolmogorov-Smirnov',
+'Chi-Square',
+'Shapiro-Francia',
+'Shapiro-Wilk')
+
+#Now we're going to do the tests
+
+Results_Male<-c(assign('ad1',ad.test(Response_Male))[2],
+assign('cv1',cvm.test(Response_Male))[2],
+assign('lt1',lillie.test(Response_Male))[2],
+assign('px1',pearson.test(Response_Male))[2],
+assign('sf1',sf.test(Response_Male))[2],
+assign('sw1',shapiro.test(Response_Male))[2])
+
+Results_Female<-c(assign('ad1',ad.test(Response_Female))[2],
+assign('cv1',cvm.test(Response_Female))[2],
+assign('lt1',lillie.test(Response_Female))[2],
+assign('px1',pearson.test(Response_Female))[2],
+assign('sf1',sf.test(Response_Female))[2],
+assign('sw1',shapiro.test(Response_Female))[2])
+
+#Make a dataframe
+
+data.frame(P.Value=unlist(Results_Male),row.names=Tests)
+data.frame(P.Value=unlist(Results_Female),row.names=Tests)
+```
+
+```{r EqualVar}
+boxplot(tlc~sex,data=tlc,col=c('maroon','blue'),names=c('Female','Male'))
+
+#less than 15 datapoints:beeswarm (strip chart)
+require(beeswarm)
+beeswarm(tlc~sex,data=tlc,col=c('red','blue'),labels=c('Female','Male'),pch=16)
+
+
+#formal tests for variance:
+require(car)
+leveneTest(tlc~as.factor(sex),data=tlc)
+
+#variances equally distributed
+bartlett.test(tlc~as.factor(sex),data=tlc)
+```
+
+```{r 2SampleTest}
+#parametric test for 2 populations is the t test
+t.test(tlc~as.factor(sex),data=tlc,paired=F,var.eq=F)
+
+#nonparametric equivalent is Mann-Whitney test:
+wilcox.test(tlc~as.factor(sex),data=tlc,paried=F)
+```
+
