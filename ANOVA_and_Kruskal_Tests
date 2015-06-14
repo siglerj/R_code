@@ -1,171 +1,105 @@
-
 ---
-title: "Two-Way-ANOVA_AndTransformation"
-author: "Jadob Sigler"
-date: "10/21/2014"
+title: "ANOVA and KW"
+author: "Jacob Sigler"
+date: "10/16/2014"
 output: html_document
 ---
 
-```{r}
-require(boot)
-data(poisons)
+```{r Anorexia}
 
-Response<-with(poisons,time)
+require(MASS)
+data(anorexia)
+head(anorexia)
 
-qqnorm(Response, col='orange')
-qqline(Response,col='black',lty='dashed',lwd=3)
+?anorexia  #learn more about anorexia dataset
 
-hist(x=Response,freq=FALSE,
-col='pink',
-main='Frequency Distrobution of time',
-xlim=c(0,1.6), #sets boundaries of x axis
-ylim=c(0,5), #you know what this is retard
-xlab='time',
-ylab='Frequency in percent'
-)
+ #hypothesis: no change in weight with treatment type
 
-Slot<-seq(from=0,to=12,length=500)
+ #need to add column corresponding to weight change
+```
 
-lines(x=Slot,
-y=dnorm(x=Slot,mean=mean(Response),sd=sd(Response)),
-lty='dashed',
-col='black')
+```{r AddWeightColumn}
+WeightChange<-with(anorexia,Postwt-Prewt)
+Newanorexia<-cbind(anorexia,WeightChange)
 
-#Data is not normally distrobuted
+head(Newanorexia)
 
-require(car)
+ #another way to do it: use within()
 
-#formal normality test:
+anorexia<-within(anorexia,Delta<-Postwt-Prewt)
+```
 
-require(e1071)
-require(nortest)
+Lets do the ANOVA:
 
-Tests<-c('Anderson-Darling',
-'Cramer-von Mises',
-'Kolmogorov-Smirnov',
-'Chi-Square',
-'Shapiro-Francia',
-'Shapiro-Wilk')
+```{r ANOVA}
+ANOVA<-aov(Delta~Treat,data=anorexia)
+ #H0: Means are the same 
+summary(ANOVA)
+ #H0 is false, there is at least differences in one of the means
+```
+If we Falsify H0, then do TukeyHSD Test (want to know which means differ)
 
-Results<-c(assign('ad1',ad.test(Response))[2],
-assign('cv1',cvm.test(Response))[2],
-assign('lt1',lillie.test(Response))[2],
-assign('px1',pearson.test(Response))[2],
-assign('sf1',sf.test(Response))[2],
-assign('sw1',shapiro.test(Response))[2])
-
-data.frame(P.Value=unlist(Results),row.names=Tests)
-
-#data is not normal
+Let's look at the data:
+```{r BeeSwarm}
 require(beeswarm)
-
-leveneTest(time~poison,data=poisons)
-#variances are not equal
-#kruscal wallis works best when variance is equal
-
-#transform: 4th root transformation
-
-Response2<-with(poisons,time)
-Response2<-sqrt(sqrt(Response2))
-
-qqnorm(Response2, col='orange')
-qqline(Response2,col='black',lty='dashed',lwd=3)
-
-hist(x=Response2,freq=FALSE,
-col='pink',
-main='Frequency Distrobution of time',
-xlim=c(0,1.6), #sets boundaries of x axis
-ylim=c(0,5),
-xlab='time',
-ylab='Frequency in percent'
-)
-
-Slot<-seq(from=0,to=12,length=500)
-
-lines(x=Slot,
-y=dnorm(x=Slot,mean=mean(Response2),sd=sd(Response2)),
-lty='dashed',
-col='black')
-
-#Its better than before in terms of distribution
-
-Results2<-c(assign('ad1',ad.test(Response2))[2],
-assign('cv1',cvm.test(Response2))[2],
-assign('lt1',lillie.test(Response2))[2],
-assign('px1',pearson.test(Response2))[2],
-assign('sf1',sf.test(Response2))[2],
-assign('sw1',shapiro.test(Response2))[2])
-
-data.frame(P.Value=unlist(Results2),row.names=Tests)
-
-leveneTest(Response2~poison,data=poisons)
-#technically not enough evidence against unequal variances, even though its right on .05
+MyBee<-beeswarm(Delta~Treat,data=anorexia
+                )
 ```
 
-Box Cox (Power Transformation)
+```{r TukeyHSD}
+TukeyHSD(ANOVA)
+#One pair of means differ(1 low p value)
+```
 
+lets make a publication worthy figure showing significant differences:
+
+```{r Pub Sexy}
+MyBee<-beeswarm(Delta~Treat,data=anorexia,
+                col=rainbow(3),
+                labels=c('CBT','Control','FT'),
+                pch=16,
+                main='Differences in Weight Depending on Therapy',
+                ylim=c(-15,40))
+#lets get the top line:
+
+segments(x0=2,y0=32,x1=3,y1=32,col='black')
+
+#left side line
+
+segments(x0=2,y0=32,x1=2,y1=30,col='black')
+
+#right side line
+
+segments(x0=3,y0=32,x1=3,y1=30,col='black')
+
+#add the significance stars:
+
+text(x=2.5,y=34,label='**',cex=1.5,col='gold')
+
+#add a little legend at bottom right:
+
+text(x=3.3,y=-12,label='P<0.01',cex=1.5,col='gold')
+```
+
+We will now do Kruscal-Wallis test using the iris data:
 ```{r}
-#For Box Cox: All data must be >0, if not use yeo johnson
-#require car when doin this
+data(iris)
 
-boxCox(time~poison,data=poisons)
+#lets say you wanted to know all the species
+with(iris,nlevels(Species))
 
-#choose lambda value at apex of parabola, we'll do lambda= -0.5
+#what are the names?
+with(iris,unique(Species))
 
-BC<-with(poisons,
-         bcPower(time,lambda=-.05,jacobian.adjusted=T)
-)
+#for factors: use levels cmmd
+with(iris,levels(Species))
 
-qqnorm(BC, col='orange')
-qqline(BC,col='black',lty='dashed',lwd=3)
+#lets say we know data is not normal
+#H0= no difference in sepal.width between species
+kruskal.test(Sepal.Width~Species,data=iris)
 
-hist(x=BC,freq=FALSE,
-col='pink',
-main='Frequency Distrobution of time',
-xlim=c(-1,.5), #sets boundaries of x axis
-ylim=c(0,3),
-xlab='time',
-ylab='Frequency in percent'
-)
-
-Slot<-seq(from=-1,to=.5,length=500)
-
-lines(x=Slot,
-y=dnorm(x=Slot,mean=mean(BC),sd=sd(BC)),
-lty='dashed',
-col='black')
-
-#best looking in terms of distribution
-
-Results3<-c(assign('ad1',ad.test(BC))[2],
-assign('cv1',cvm.test(BC))[2],
-assign('lt1',lillie.test(BC))[2],
-assign('px1',pearson.test(BC))[2],
-assign('sf1',sf.test(BC))[2],
-assign('sw1',shapiro.test(BC))[2])
-
-data.frame(P.Value=unlist(Results3),row.names=Tests)
-
-#Not enough evidence against normality now
-
-leveneTest(BC~poison,data=poisons)
-
-#Not enough evidence against unequal variance
-
+#now we gonna investigate pairwise comparisons with MW:
+wilcox.test(Sepal.Width~Species,data=iris,
+            subset=Species%in%c('setosa','virginica'))
 ```
-
-yeo-johnson way:
-
-```{r}
-require(car)
-# yjPower(time~poison,data=poisons,family='yjpower') # not working correctly
-```
-
-Set up your 2 way ANOVA
-
-```{r}
-summary(aov(BC~poison*treat,data=poisons))
-```
-
-
 
