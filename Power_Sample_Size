@@ -1,0 +1,87 @@
+#Normal Dist
+A<-rnorm(1000,mean=50,sd=10)
+plot(density(A),xlim=c(0,100))
+
+#Sample
+n=100
+a<-sample(x=A,size=n, replace=T)
+hbrks<-seq(0,n,2)
+hist.a<-hist(a,xlim=c(0,n),breaks=hbrks,col='gray')
+
+#Estimators
+mean.a<-mean(a);mean.a
+var.a<-var(a);var.a
+sd.a<-sd(a);sd.a
+
+#95% CI
+t<-qt(p=0.975,df=n-1);t
+lo=mean.a-t*sd.a;lo
+hi=mean.a+t*sd.a;hi
+abline(v=lo)
+abline(v=hi)
+
+#Calc conf interval around mean
+se.a<-sqrt(var.a/n);se.a
+CI.a<-t*se.a;CI.a
+lo.a<-mean.a-CI.a;lo.a
+hi.a<-mean.a+CI.a;hi.a
+abline(v=lo.a)
+abline(v=hi.a)
+#95% probability the mean falls between these two points (lo.a,hi.a)
+
+##Sample Size
+# if CI = t*sqrt(v/n)
+# then n = 4v/CI^2
+#good survey: CI ~ 25% of mean
+#great survey: CI ~ 10% of mean
+
+#Iterive Process: First pass, t=2
+CI<-0.1*mean.a;CI
+n.a<-4*var.a/CI^2;n.a
+
+#second pass, t=n.a
+t<-qt(p=0.975,df=n.a-1);t
+n.a2<-t^2*var.a/CI^2;n.a2
+na<-ceiling(n.a2);na
+
+#NOTE: n is proportional to 1/sqrt(CI)
+# so if we want to decrease the CI by 50% i.e. 1/2
+# then n (new) will be = n(old)*1/sqrt(.5) or n(old)*4
+
+CI<-0.05*mean.a;CI
+na.a<-4*var.a/CI^2;n.a
+
+#check by sampling
+sam.a2<-sample(A,na,replace=t)
+mean.a2<-mean(sam.a2);mean.a2
+var.a2<-var(sam.a2);var.a2
+se.a2<-sqrt(var.a2/n.a)
+t2<-qt(p=0.975,df=n.a);t2
+CI2<-t2*se.a2;CI2
+
+
+#sample size function in R
+# power.t.test(n=,
+#              delta=,
+#              sig.level=,
+#              sd=,
+#              power=,
+#              type=,
+#              alternative=
+# )
+
+
+#for one sided test: can we tell the difference between two means separated by our conf interval?
+#Calculates the argument that is left as NULL. e.g. sample size, power, minimum difference(delta), significance level
+power.t.test(n=NULL,
+             delta=CI,
+             sig.level=0.05,
+             sd=sd.a,
+             power=.8,
+             type='one.sample'
+)
+
+#Can be used on difference of means. You will need pooled variance sd(a+b)
+# other uses include type=paired
+# power.anova.test
+#power.p.test
