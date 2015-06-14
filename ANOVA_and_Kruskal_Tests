@@ -1,1 +1,171 @@
 
+---
+title: "Two-Way-ANOVA_AndTransformation"
+author: "Jadob Sigler"
+date: "10/21/2014"
+output: html_document
+---
+
+```{r}
+require(boot)
+data(poisons)
+
+Response<-with(poisons,time)
+
+qqnorm(Response, col='orange')
+qqline(Response,col='black',lty='dashed',lwd=3)
+
+hist(x=Response,freq=FALSE,
+col='pink',
+main='Frequency Distrobution of time',
+xlim=c(0,1.6), #sets boundaries of x axis
+ylim=c(0,5), #you know what this is retard
+xlab='time',
+ylab='Frequency in percent'
+)
+
+Slot<-seq(from=0,to=12,length=500)
+
+lines(x=Slot,
+y=dnorm(x=Slot,mean=mean(Response),sd=sd(Response)),
+lty='dashed',
+col='black')
+
+#Data is not normally distrobuted
+
+require(car)
+
+#formal normality test:
+
+require(e1071)
+require(nortest)
+
+Tests<-c('Anderson-Darling',
+'Cramer-von Mises',
+'Kolmogorov-Smirnov',
+'Chi-Square',
+'Shapiro-Francia',
+'Shapiro-Wilk')
+
+Results<-c(assign('ad1',ad.test(Response))[2],
+assign('cv1',cvm.test(Response))[2],
+assign('lt1',lillie.test(Response))[2],
+assign('px1',pearson.test(Response))[2],
+assign('sf1',sf.test(Response))[2],
+assign('sw1',shapiro.test(Response))[2])
+
+data.frame(P.Value=unlist(Results),row.names=Tests)
+
+#data is not normal
+require(beeswarm)
+
+leveneTest(time~poison,data=poisons)
+#variances are not equal
+#kruscal wallis works best when variance is equal
+
+#transform: 4th root transformation
+
+Response2<-with(poisons,time)
+Response2<-sqrt(sqrt(Response2))
+
+qqnorm(Response2, col='orange')
+qqline(Response2,col='black',lty='dashed',lwd=3)
+
+hist(x=Response2,freq=FALSE,
+col='pink',
+main='Frequency Distrobution of time',
+xlim=c(0,1.6), #sets boundaries of x axis
+ylim=c(0,5),
+xlab='time',
+ylab='Frequency in percent'
+)
+
+Slot<-seq(from=0,to=12,length=500)
+
+lines(x=Slot,
+y=dnorm(x=Slot,mean=mean(Response2),sd=sd(Response2)),
+lty='dashed',
+col='black')
+
+#Its better than before in terms of distribution
+
+Results2<-c(assign('ad1',ad.test(Response2))[2],
+assign('cv1',cvm.test(Response2))[2],
+assign('lt1',lillie.test(Response2))[2],
+assign('px1',pearson.test(Response2))[2],
+assign('sf1',sf.test(Response2))[2],
+assign('sw1',shapiro.test(Response2))[2])
+
+data.frame(P.Value=unlist(Results2),row.names=Tests)
+
+leveneTest(Response2~poison,data=poisons)
+#technically not enough evidence against unequal variances, even though its right on .05
+```
+
+Box Cox (Power Transformation)
+
+```{r}
+#For Box Cox: All data must be >0, if not use yeo johnson
+#require car when doin this
+
+boxCox(time~poison,data=poisons)
+
+#choose lambda value at apex of parabola, we'll do lambda= -0.5
+
+BC<-with(poisons,
+         bcPower(time,lambda=-.05,jacobian.adjusted=T)
+)
+
+qqnorm(BC, col='orange')
+qqline(BC,col='black',lty='dashed',lwd=3)
+
+hist(x=BC,freq=FALSE,
+col='pink',
+main='Frequency Distrobution of time',
+xlim=c(-1,.5), #sets boundaries of x axis
+ylim=c(0,3),
+xlab='time',
+ylab='Frequency in percent'
+)
+
+Slot<-seq(from=-1,to=.5,length=500)
+
+lines(x=Slot,
+y=dnorm(x=Slot,mean=mean(BC),sd=sd(BC)),
+lty='dashed',
+col='black')
+
+#best looking in terms of distribution
+
+Results3<-c(assign('ad1',ad.test(BC))[2],
+assign('cv1',cvm.test(BC))[2],
+assign('lt1',lillie.test(BC))[2],
+assign('px1',pearson.test(BC))[2],
+assign('sf1',sf.test(BC))[2],
+assign('sw1',shapiro.test(BC))[2])
+
+data.frame(P.Value=unlist(Results3),row.names=Tests)
+
+#Not enough evidence against normality now
+
+leveneTest(BC~poison,data=poisons)
+
+#Not enough evidence against unequal variance
+
+```
+
+yeo-johnson way:
+
+```{r}
+require(car)
+# yjPower(time~poison,data=poisons,family='yjpower') # not working correctly
+```
+
+Set up your 2 way ANOVA
+
+```{r}
+summary(aov(BC~poison*treat,data=poisons))
+```
+
+
+
