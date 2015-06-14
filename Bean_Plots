@@ -1,0 +1,38 @@
+---
+title: "Bean Plots"
+author: "Jacob Sigler"
+date: "2/19/2015"
+output: html_document
+---
+
+```{r}
+
+#Bean Plots nyga
+
+#side="both" to show both plots on the same plot (binary variables)
+
+# big black line in center= mean (not like in box plots where its the median)
+
+require(lattice)
+
+data("singer",package="lattice")
+
+require(beanplot)
+
+data("singer", package = "lattice")
+
+par(lend = 1, mai = c(0.8, 0.8, 0.5, 0.5))
+beanplot(height ~ voice.part, data = singer, ll = 0.04,
+         main = "Height of Singers in Two Groups", ylab = 'Body Height (inch)', side = "both",
+         border = 'gray50', col = list("pink", c("grey40", "white")))
+legend("bottomleft", fill = c("pink", "grey40"), legend = c("Ames College", "Iowa University"),box.col=NA)
+
+?singer
+
+#kruskalmc command
+
+require(pgirmess)
+
+#kruskalmc(w/e)
+
+```
