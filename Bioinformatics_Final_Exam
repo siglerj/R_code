@@ -1,0 +1,612 @@
+---
+title: "Final Exam ver. 3"
+author: "Jacob Sigler"
+date: "12/05/2014"
+output:
+  html_document:
+    highlight: tango
+    theme: spacelab
+---
+
+**Directions:** First, compile (knit) this document before you make any changes to it. Notice that it compiles normally. After adding your solutions, it still must compile normally. If it does not, your grade will be reduced one letter grade. **If you can find the code that prevents your code from compiling, comment it out.** 
+
+You have until noon on Friday December 12 to finish the exam. The server will be unavailable while I grade the exams. Please download all files that you want to save *before* noon on Dec 12.
+
+Corrections: Please check back in /opt/Bioinformatics for corrections to this document. The current version is VERSION 3 (8Dec14 8:56 a.m.).
+
+Write the commands you used to do each of the exercises below. When asked to prove your code works, execute your object and let R print the output. Kindly do not execute an object that will produce 50+ pages of data.frame. Use dim() instead.
+
+### Lyme Disease in the Empire State
+
+1. Make a map of New York State showing the prevalence of Lyme Disease in 2011, by county.
+
+```{r}
+require(maps)
+require(plotrix)
+load('/opt/Bioinformatics/LymeCDC.Rdata')
+NYLyme<-subset(LymeCDC,subset=(StateName=='new york'))
+NYPops<-c(303565,48778,1392002,199031,79832,79738,134368,88840,50118,81945,62550,49363,47559,297999,918028,39181,51551,55180,59993,48954,4793,64160,117910,2532645,27072,65070,73365,745625,49916,1344436,1601948,216011,234287,466960,108525,374872,42622,122228,61917,99933,2247848,159395,470467,315158,111690,220882,155058,32578,18361,35198,99033,1498816,76900,51043,101723,182448,65831,63165,93436,955899,41944,25454)
+NYPrev2011<-with(NYLyme,y2011)/NYPops
+AdjNYPrev2011<-NYPrev2011/max(NYPrev2011)
+NYLymeColors<-colorRamp(c('black','yellow'))
+NYLymeColors<-rgb(NYLymeColors(AdjNYPrev2011),maxColorValue=256)
+NYMap<-map(database='county',
+            regions='new york',
+            fill=T,  
+            interior=T,
+            bg='black',
+            col=NYLymeColors,
+            lwd=4,
+            add=F
+            )
+PAMap<-map(database='county',
+            regions='new york',
+            fill=F,
+            interior=T,
+            bg='black',
+            col='white',
+            lwd=2,
+            add=T
+            )
+color.legend(xl=-77,yb=40,xr=-80,yt=40.2,  
+             legend=c(0,round(max(NYPrev2011)*1000,digits=3)),
+             rect.col=colorRampPalette(c('black','yellow'))(100),
+             col='white')
+title(main='Prevalence of Lyme Disease in NY by County\n  Cases per 1000 Peoples , 2011',col.main='white')
+```
+
+
+2. Interpret the map. Bear in mind the index case of Lyme Disease was in Lyme, Connecticut, in 1975. What direction is Connecticut relative to New York ? Does the distribution of prevalences agree with radiation of parasite-laden ticks out of Connecticut ?  
+
+The most prevalent states are along the southeastern border of New York. This makes sense because Conneticut is right next door to where those high prevelance counties in New York. So yes, the distribution of prevalences do agree with the radiation of infected ticks out of Conneticut.
+
+### Distribution of Dancing Lady Orchids
+
+1. Research *Oncidium sphacelatum* to get a sense of its ecology, here and elsewhere: http://www.orchidspecies.com/oncsphacelatum.htm
+
+2. Make maps showing the distribution of *O. sphacelatum* using a variety of distribution models.
+
+
+```{r Packages}
+require(dismo)
+require(maptools)
+require(raster)
+```
+
+```{r DATA}
+
+Orchid<-dismo::gbif(genus='oncidium',species='sphacelatum*',geo=F)
+
+Orchid<-subset(Orchid,subset=(lat!='Na' & lon!='NA'))
+
+```
+
+```{r SanityCheckANDJanitorWork}
+data(wrld_simpl)
+plot(wrld_simpl,
+     axes=T,
+     col='light yellow',
+     )
+points(x=with(Orchid,lon),
+       y=with(Orchid,lat),
+       col='red',
+       pch=20,
+       cex=0.75
+       )
+WeirdPoints<-subset(Orchid,lat>25)
+```
+
+```{r Janitor Work}
+#Fix the ones in Asia
+Orchid<-within(Orchid, {
+  lon<-ifelse(lon<0,lon,lon*-1)
+  }
+  )
+#Delete the few in US and in Sweden
+Orchid<-subset(Orchid,subset=(country!='Sweden' & country!='United States'))
+```
+
+```{r Dups}
+OrchidDups<-duplicated(Orchid[,1:10])
+Orchid<-Orchid[!OrchidDups,]
+```
+
+```{r Prep}
+ClimBio<-getData(name='worldclim',
+                 var='bio',
+                 res=10) 
+ClimAlt<-getData(name='worldclim',
+                 var=c('alt'),
+                 res=10)
+ClimBio<-stack(ClimAlt,ClimBio)
+#Variables I want to test
+ClimBioCrop<-crop(x=subset(ClimBio,subset=c('alt','bio5','bio6','bio13','bio14'),
+                         drop=T),
+                         y=extent(-115,-75,0,30)
+                   )
+ExtractedValues<-extract(ClimBioCrop,with(Orchid,cbind(lon,lat)))
+```
+
+# Bioclim Method
+
+```{r  Bioclim}
+bc<-bioclim(ExtractedValues)
+plot(predict(ClimBioCrop,bc),
+     xlab='Longitude',
+     ylab='Latitude'
+     )
+plot(wrld_simpl,
+     lwd=1,
+     add=T,
+     border='dark grey'
+     )
+title(main='Range of O. sphacelatum in Central America')
+mtext(text='Alt,Bio5,bio6,bio13,bio14',
+      side=3,
+      font=4,
+      col='black',
+      line=0,
+      cex=0.8
+      )
+mtext(text='Bioclim Method',
+      side=3,
+      font=3,
+      col='black',
+      line=0.8,
+      cex=0.8
+      )
+```
+
+# Mahalanobis Method
+
+```{r Mahalanobis}
+mm<-mahal(ExtractedValues)
+plot(predict(ClimBioCrop,mm),
+     xlab='Longitude',
+     ylab='Latitude'
+     )
+plot(wrld_simpl,add=T,border='black',lwd=1)
+title(main='Range of O. sphacelatum in Central America')
+mtext(text='Alt,Bio1,Bio5,bio6,Bio14',
+      side=3,
+      font=4,
+      col='black',
+      line=0,
+      cex=0.8
+      )
+mtext(text='Mahalanobis Method',
+      side=3,
+      font=3,
+      col='black',
+      line=0.8,
+      cex=0.8
+      )
+```
+
+# DOMAIN Method
+
+```{r DOMAIN}
+dm<-domain(ExtractedValues)
+plot(predict(ClimBioCrop,dm),
+     xlab='Longitude',
+     ylab='Latitude'
+     )
+plot(wrld_simpl,
+     lwd=1,
+     add=T,
+     border='dark grey'
+     )
+title(main='Range of O. sphacelatum in Central America')
+mtext(text='Alt,Bio1,Bio5,bio6,Bio14',
+      side=3,
+      font=4,
+      col='black',
+      line=0,
+      cex=0.8
+      )
+mtext(text='DOMAIN Method',
+      side=3,
+      font=3,
+      col='black',
+      line=0.8,
+      cex=0.8
+      )
+```
+
+
+### Relationships between tropical pitcher plants
+
+1. Create phylogenetic trees for plants in the *Nepenthes* genus. What gene will you choose as a readout of evolutionary relatedness between these different species ? What species will you select as your outgroup ? If any plants are extinct, label them as such.  
+
+I will use acidic endochitinase protein to compare the species and my outgroup will be *Arabidopsis thaliana*
+
+```{r DATA2}
+require(ape)
+Nepenthes<-read.dna(file='~/Bioinformatics_Notes/Nepenthes.mfa',
+              format='fasta'
+              )
+names(Nepenthes)<-c( 'ampullaria','gracilis','rafflesiana','mirabilis','singalana','thorelii','ventricosa','Arabidopsis thaliana')
+```
+
+```{r MUSCLE}
+aln<-ape::muscle(Nepenthes)
+```
+
+```{r DistanceMatrix}
+require(phangorn)
+PhyNepenthes<-as.phyDat(x=aln)
+# Distance Matrix
+DistanceMatrix<-dist.ml(PhyNepenthes,model='JC69')
+DistanceMatrix
+```
+
+```{r UPGMA}
+treeUPGMA<-upgma(DistanceMatrix)
+plot.phylo(treeUPGMA)
+```
+
+# NJ Tree
+
+```{r NJTree}
+treeNJ<-NJ(DistanceMatrix)
+plot.phylo(treeNJ, type='radial',cex=0.8)
+
+title(main='Relationship Among Nepenthes Species (NJ)')
+mtext(text='Jukes-Cantor 1969',font=3,line=0.5)
+```
+
+# Maximum Likelyhood Tree
+
+```{r ML}
+fitML<-pml(treeNJ,data=PhyNepenthes)
+fitML<-optim.pml(fitML,optNni=T)
+# Tree and bootstraps
+plot(fitML[['tree']],type='radial',cex=0.8)
+bsML<-bootstrap.pml(fitML,bs=100,optNni=T,control=pml.control(trace=0))
+plotBS(tree=fitML[['tree']],BStrees=bsML,type='radial',cex=0.8,bs.col='red')
+title(main='Relationship Among Nepenthes Species (ML)')
+mtext(text='Jukes-Cantor 1969',font=3,line=0.5)
+```
+
+# Maximum Parsimony Tree
+
+```{r MP}
+treeRatchet<-pratchet(data=PhyNepenthes, trace=0)
+plot(treeRatchet,type='radial')
+
+title(main='Relationship Among Nepenthes Species (MP)')
+mtext(text='Jukes-Cantor 1969',font=3,line=0.5)
+```
+
+2. Interpret the phylogenetic trees.
+
+*N. mirabilis* and *N. ventricosa* are the most distantly related to all other species. *N. rafflesiana* is more distantly related than *N. gracilis* and *N. singalana*, but is more closely related to *N. thorelii* and *N. ampullaria*.
+
+### Rocky Mountain Spotted Fever (RMSF) in America
+
+1. Read this paper: http://www.ajtmh.org/content/63/1/21.full.pdf+html
+
+2. Make a colorful nationwide map summarizing the incidence of RMSF from 1993-1996 on a state-by-state basis.
+
+```{r Require}
+require(maps)
+require(plotrix)
+require(mapproj)
+```
+
+```{r Incidence}
+Incidence<-c(16,0,43,0,11,0,7,0,45,49,0,27,17,7,7,22,3,0,96,14,14,14,3,3,0,2,48,9,5,0,0,9,0,27,27,27,27,347,347,347,0,37,159,0,23,0,35,17,22,7,1,0,119,119,119,2,2,2,2,2,10,0,0)
+#Population data optained at https://doe.state.wy.us/lmi/0197/0197a3.htm
+Pop96<-c(4273084,4428068,2509793,31878234,3822676,3274238,724842,543213,14399985,7353225,1189251,11846544,5840528,2851792,2572150,3883723,4350579,1243316,5071604,6092352,6092352,6092352,9594350,9594350,4657758,2716115,5358692,879372,1652093,1603163,1162481,7987933,1713407,18184774,18184774,18184774,18184774,7322870,7322870,7322870,643539,11172782,3300902,3203735,12056112,990225,3698746,732405,5319654,19128261,2000494,588654,6675451,6675451,6675451,5532939,5532939,5532939,5532939,5532939,1825754,5159795,481400)
+Proportion<-Incidence/Pop96
+AdjProportion<-Proportion/max(Proportion)
+```
+
+```{r MAP}
+AdjPColors<-colorRamp(c('black','red'))
+AdjPColors<-rgb(AdjPColors(AdjProportion),maxColorValue=256)
+USMapInc<-map(database='state',
+           fill=T,
+           interior=T,
+           bg='black',
+           col=AdjPColors,
+           lwd=4,
+           add=F,
+           projection='sinusoidal')
+#Borders
+USMapInc<-map(database='state',
+           fill=F,
+           interior=T,
+           bg='black',
+           col='white',
+           lwd=1,
+           add=T,
+           projection='sinusoidal')
+title(main='Rocky Mountain Spotted Fever \n Incidence by State \n per Million Peeople',
+      col.main='white')
+#Legend
+str(USMapInc)
+color.legend(xl=-.3,yb=.4,xr=.3,yt=.41,  
+             legend=c(0,round(max(Incidence))),
+             rect.col=colorRampPalette(c('black','red'))(100),
+             col='white')
+```
+
+
+### Back to the Cemetery
+
+1. Using your MdDeCemeteries dataset, test the null hypothesis that graves surveyed by phillir & siglerj have the same survivorship distribution as graves surveyed by thomasj & hakerk. If you reject the null hypothesis, which graves had improved survivorship ? Make a pretty survivorship plot, if appropriate.
+
+```{r DATA3}
+IND<-read.table(file='~/Bioinformatics_Notes/Survivorship/Individual.txt',sep="\t",header = T)
+RedMan<-read.table(file='~/Bioinformatics_Notes/Survivorship/Redman.txt',sep="\t",header = T)
+MdDeCemeteries<-rbind(IND,RedMan)
+MdDeCemeteries<-within(MdDeCemeteries, {
+  Born<-as.Date(Born)
+  Died<-as.Date(Died)
+  SurveyDate<-as.Date(SurveyDate)
+  Inferred_Sex<-as.factor(Inferred_Sex)
+  Buried<-as.factor(Buried)
+  County<-as.factor(County)
+  State<-as.factor(State)
+  SurveyPers<-as.factor(SurveyPers)
+})
+MdDeCemeteries<-within(MdDeCemeteries, Lifespan<-Died-Born)
+MdDeCemeteries<-subset(MdDeCemeteries,subset=(Lifespan>=0))
+MdDeCemeteries<-within(MdDeCemeteries,Family<-toupper(MdDeCemeteries[,1]))
+MdDeCemeteries<-subset(MdDeCemeteries,subset=(Inferred_Sex!='male'))
+siglerjphillir<-subset(MdDeCemeteries,subset=(SurveyPers=='siglerj & phillir'))
+thomasjhakerk<-subset(MdDeCemeteries,subset=(SurveyPers=='thomasj & hakerk'))
+MdDeCemeteries<-rbind(siglerjphillir,thomasjhakerk)
+
+```{r Survivorship}
+require(survival)
+MdDeCemeteries<-within(MdDeCemeteries,Status<-'Dead')
+SurvivorshipByPerson<-with(MdDeCemeteries,Surv(time=as.numeric(Lifespan),
+                                              event=Status=='Dead')~SurveyPers)
+KMfit<-survfit(formula=SurvivorshipByPerson)
+wilcox.test(as.numeric(Lifespan)~SurveyPers,data=MdDeCemeteries)
+```
+
+Our p-value for the wilcox test turned out to be 0.1954. In this case we do not reject the null hypothesis and conclude there is not enough evidence to support there is a difference in survivorship between the graves recorded by 'siglerj & phillir' and 'thomasj & hakerk'.
+
+But just because I wanted to, here is a pretty plot of the curves if we did reject the null.
+
+```{r Plots}
+myPalette<-c('blue','red')
+plot(KMfit,main='Siglerj & Phillir Data Has Improved\n Survivorship through Middle Age',
+     conf.int=F,col=myPalette,lty=c(1,1),lwd=5,
+     xlab='Lifespan (days)',ylab='Survivorship Probability',
+     mark.time=F)
+legend(legend=c('thomasj & hakerk','siglerj & phillir'),x='bottomleft',
+       lty=c(1,1),lwd=5,col=myPalette)
+```
+
+
+
+### Prostate Cancer Survivorship
+
+1. Survivorship data from Taylor et al. (http://www.ncbi.nlm.nih.gov/pubmed/20579941) has been downloaded and placed in /opt/Bioinformatics/Taylor_Survivorship.tsv.
+
+```{r DATA4}
+TaylorSurv<-read.table(file='/opt/Bioinformatics/Taylor_Survivorship.tsv',header=T,sep='\t')
+```
+
+2. The dataset is very rich with independent variables you can test. The two dependent variables in the dataset are BCR\_FreeTime and SurvTime. The difference between the two is the difference between relapse and death. "BCR Freetime (Biochemical Relapse-Free time)" is the time in months after diagnosis until the cancer relapses. SurvTime is the amount of time until death. However, prostate cancer patients seldom die of prostate cancer, so in the field we are generally more concerned with extending relapse-free survival than overall longevity. 
+
+3. Notice there is a column called BCR\_Event. NO means relapse did not happen during the study period. BCR\_Algorithm means relapse occured during the study period.
+
+4. You may need to do some research on prostate cancer to understand the colnames. Dx means diagnosis, Bx means baseline, SMS means surgical margin status, GG means Gleason grade, GGS means Gleason Sum.
+
+5. Develop *two* hypotheses related to the survivorship of prostate cancer patients. Do the data janitor work if necessary, to get the data in the correct format for testing.
+
+Null: There is no difference in BCR\_FreeTime between patients who had positive or negative surgical margin status 
+Alt: There is a difference in BCR\_FreeTime between patients who had positive or negative surgical margin status  
+
+AND
+
+Null: There is no difference in BCR\_FreeTime between patients who had positive or negative SVI
+Alt: There is a difference in BCR\_FreeTime between patients who had positive or negative SVI  
+
+6. Test both hypotheses using the appropriate statistical tests and discuss your findings.
+
+```{r SubsetTaylor}
+TaylorSurv<-subset(TaylorSurv,subset=(SMS!='NA'))
+TaylorSurv<-subset(TaylorSurv,subset=(SurvTime!='NA'))
+```
+
+```{r NormalityBCRFreeTime}
+Response<-with(TaylorSurv,BCR_FreeTime)
+require(e1071)
+require(nortest)
+
+Tests<-c('Anderson-Darling',
+'Cramer-von Mises',
+'Kolmogorov-Smirnov',
+'Chi-Square',
+'Shapiro-Francia',
+'Shapiro-Wilk')
+Results<-c(assign('ad1',ad.test(Response))[2],
+assign('cv1',cvm.test(Response))[2],
+assign('lt1',lillie.test(Response))[2],
+assign('px1',pearson.test(Response))[2],
+assign('sf1',sf.test(Response))[2],
+assign('sw1',shapiro.test(Response))[2])
+data.frame(P.Value=unlist(Results),row.names=Tests)
+```
+
+Data is not normally distributed based upon low p-values
+
+
+```{r EqualVar}
+require(car)
+leveneTest(BCR_FreeTime~as.factor(SMS),data=TaylorSurv)
+```
+
+However with a relatively hight p-value here we can assume equal variances
+But since one of our assumptions was a bust we have to do the Mann Whitney test.
+
+However, this is right-censored Data because some of the data had relapse happen after the study so we will use the log-rank test
+
+```{r FirstTest}
+require(survival)
+TaylorSurv<-within(TaylorSurv,Status<-'Dead')
+survdiff(Surv(time=as.numeric(BCR_FreeTime),event=Status=='Dead')~SMS,data=TaylorSurv)
+```
+We obtain a p-value of 0.531. We do not reject the null hypothesis and conclude there is not enough evidence to support that there is a difference in BCR\_FreeTime whether SMS was positive or negative.
+
+
+We already determined the BCR\_FreeTime was not normally distributed and since that assumption is violated it doesn't matter if we have equal variances. Plus the data is still right-censored.
+
+```{r SecondTest}
+survdiff(Surv(time=as.numeric(BCR_FreeTime),event=Status=='Dead')~SVI,data=TaylorSurv)
+```
+
+With a p-value of 0.000394 we can reject the null. We can conclude there is enough evidence to support a difference in BCR\_FreeTime whether the SVI is positive or negative.
+
+### More Prostate Cancer
+
+1. Read about the clinical staging of prostate cancer here: http://www.cancer.org/cancer/prostatecancer/detailedguide/prostate-cancer-staging
+
+2. Using the Taylor et al. dataset, test the null hypothesis that there is no difference in the BCR-free survival based on clinical tumor stage (ClinT\_Stage). Of course you should do a thorough analysis and show all your work.
+
+First we will test for normality. We know the initial response isn't normal to begin with, but lets use a transformation with ClinT\_Stage
+
+```{r}
+TaylorSurv<-subset(TaylorSurv,subset=(ClinT_Stage!='NA'))
+```
+
+The code for the boxCox was perfect, but for some reason it kept bringing up an error when knitting. However, the p-values with the boxcox tranform still were very low
+
+```{r AnotherTransform}
+Response2<-sqrt(sqrt(Response))
+Results<-c(assign('ad1',ad.test(Response))[2],
+assign('cv1',cvm.test(Response))[2],
+assign('lt1',lillie.test(Response))[2],
+assign('px1',pearson.test(Response))[2],
+assign('sf1',sf.test(Response))[2],
+assign('sw1',shapiro.test(Response))[2])
+data.frame(P.Value=unlist(Results),row.names=Tests)
+```
+Still pretty low. Moving on...
+
+```{r ThirdTest}
+survdiff(Surv(time=as.numeric(BCR_FreeTime),event=Status=='Dead')~ClinT_Stage,data=TaylorSurv)
+```
+
+With a p-value of 0.00212 we reject the null and conclude that there is enough evidence to support the BCR\_FreeTime is different amongst ClinT_Stage.
+
+### For Loops
+
+1. Using the Taylor et al. prostate cancer dataset, write a **for** loop that makes Q-Q Plots (with qqlines) for these five columns of the Taylor et al. dataset:
+ + PreDxBxPSA
+ + DxAge
+ + PreTxPSA
+ + BCR_FreeTime
+ + SurvTime
+ 
+ 
+```{r QQ}
+QQ<- TaylorSurv[,c(5,6,10,27,30)]
+
+for ( i in 1:ncol(QQ) ) {
+  qqnorm(QQ[,i], col='orchid',main = colnames(QQ[i]))
+  qqline(QQ[,i],col='gray', lty='dashed', lwd=3)
+  }
+
+```
+
+### Formulas
+
+Create a vector *x* containing the numbers 2, 6, 7, 10, 12, in that order.  
+Create a vector *y* containing the numbers 11, 7, 7, 2, 1, in that order.  
+Behold the following $\LaTeX$ equation:
+
+$\frac{\frac{1}{y!}}{\frac{1}{\sqrt{xy}}} - \frac{x! + y!}{5\times\sqrt{4x_1x_2}} - \frac{\prod{(x_1!, \cdots x_n!)}}{16(y_2-y_4)} - x_2$  
+In a R chunk, please program the solution to this equation. Feel free to simplify the equation, if you think it will help.
+
+```{r Vectors}
+x<-c(2,6,7,10,12)
+y<-c(11,7,7,2,1)
+test<-c(1,2,3,4)
+```
+
+```{r MATH}
+Solution<-((1/factorial(y))/(1/sqrt(x*y)))-((factorial(x)+factorial(y))/(5*sqrt((4*x[1]*x[2]))))-(prod(factorial(x))/(16*(y[2]-y[4])))-x[2]
+Solution
+```
+
+
+
+### CODIS
+A DNA sample was recovered from a crime scene in Nashville, Tennessee. The DNA was purified and a CODIS profile developed:
+
+Row   | Allele1   | Allele2   | STR  
+----- | --------- | --------- | ------  
+1     | 106       | 106       | AMEL  
+2     | 6         | 11        | CSF1PO  
+3     | 21        | 25        | FGA  
+4     | 6         | 6         | THO1  
+5     | 10        | 11        | TPOX  
+6     | 18        | 21        | VWA  
+7     | 16        | 19        | D3S1358  
+8     | 9         | 8         | D5S818  
+9     | 8         | 11        | D7S820  
+10    | 15        | 15        | D8S1179
+11    | 10        | 11        | D13S317 
+12    | 10        | 15        | D16S539
+13    | 12        | 18        | D18S51  
+14    | 33        | 24        | D21S11
+
+Is this suspect in the CODIS database ? If not, who would you want to talk to about the suspect ? What relation do the people you talk to have to the suspect ?
+
+```{r Suspect}
+require(CODIS)
+data(Synthetic_CODIS)
+data(Synthetic_Crime)
+Suspect<-c(106,106,  #AMEL
+            6,11,    #CSF1PO
+            21,25,   #FGA
+            6,6,     #THO1
+            10,11,   #TPOX
+            18,21,   #VWA
+            16,19,   #D3S1358 
+            9,8,     #D5S818
+            8,11,    #D7S820
+            15,15,   #D851179
+            10,11,   #D13S317
+            10,15,   #D16S539
+            12,18,   #D18S51
+            33,24    #D21S11
+           )
+```
+
+```{r Query}
+suspectQuery<-CODIS(Suspect, MIN_POINTS=28)
+#No hits so lets try 14
+suspectQuery<-CODIS(Suspect, MIN_POINTS=14)
+
+suspectHits<-with(suspectQuery,SIN)
+
+suspectPeeps<-subset(Synthetic_Crime,
+                      subset=(SIN %in% suspectHits))
+```
+
+```{r SubsettingLife}
+suspectPeeps<-subset(suspectPeeps,subset=(City=="Nashville"))
+suspectPeeps[,2:4]
+```
+An exact match did not come up in the data base so I found the people who live in Nashvill that had half matching alleles. The relation these people have should be the previous generation to the suspect. Whether it be mother, father, etc.
+
+### qPCR Primers
+Please design qPCR primers to interrogate the following gene in bushbaby:  
+NK1 homeobox 1  
+Make sure you document your work and insert pictures of anything relevant that you think I would want to see.
+
+I went to NCBI nucleotide and entered NK1 and bush baby and obtained one result for mRNA. The accession number is XM_003801117. Looked up the FASTA and clicked pick primers. Checked the box for intron exclusion and then obtained 6 primers.
+
+Below is the primer that is the best pick because of its relatively short product length and the intron size that was excluded is large.
+
+![PRIMERSYES][Snap]
+
+[Snap]: snip.PNG "PRIMERS YES"
