@@ -1,0 +1,74 @@
+---
+title: "MD and DE Cemetary Survivorship"
+author: "Jacob Sigler"
+date: "November 4, 2014"
+output: html_document
+---
+
+MdDeCemeteries Dataframe set up
+
+```{r}
+IND<-read.table(file="~/Bioinformatics_Notes/Survivorship/Individual.txt",sep="\t",header = T)
+RedMan<-read.table(file="~/Bioinformatics_Notes/Survivorship/Redman.txt",sep="\t",header = T)
+
+MdDeCemeteries<-rbind(IND,RedMan)
+
+MdDeCemeteries<-subset(MdDeCemeteries,subset=(Died!='NA'))
+
+MdDeCemeteries<-subset(MdDeCemeteries,subset=(Born!='NA'))
+
+MdDeCemeteries<-within(MdDeCemeteries, {
+  Born<-as.Date(Born)
+  Died<-as.Date(Died)
+  SurveyDate<-as.Date(SurveyDate)
+  Inferred_Sex<-as.factor(Inferred_Sex)
+  Buried<-as.factor(Buried)
+  County<-as.factor(County)
+  State<-as.factor(State)
+  SurveyPers<-as.factor(SurveyPers)
+})
+
+MdDeCemeteries<-within(MdDeCemeteries, Lifespan<-Died-Born)
+
+head(MdDeCemeteries)
+
+MdDeCemeteries<-subset(MdDeCemeteries,subset=(Lifespan>=0))
+
+MdDeCemeteries<-within(MdDeCemeteries,Family<-toupper(MdDeCemeteries[,1]))
+
+MdDeCemeteries<-subset(MdDeCemeteries,subset=(Inferred_Sex!='male'))
+MdDeCemeteries<-subset(MdDeCemeteries,subset=(Inferred_Sex!=''))
+MdDeCemeteries<-subset(MdDeCemeteries,subset=(Inferred_Sex=='Male' | Inferred_Sex=='Female'))
+
+summary(MdDeCemeteries)
+
+
+```
+
+MdDeCemeteries survivorship analysis
+
+```{r}
+require(survival)
+
+MdDeCemeteries<-within(MdDeCemeteries,Status<-'Dead')
+
+SurvivorshipByState<-with(MdDeCemeteries,Surv(time=as.numeric(Lifespan),
+                                              event=Status=='Dead')~State)
+
+KMfit<-survfit(formula=SurvivorshipByState)
+
+wilcox.test(as.numeric(Lifespan)~State,data=MdDeCemeteries)
+
+plot(KMfit,mark.time=F,conf.int = F)
+
+myPalette<-c('gray25','pink')
+plot(KMfit,main='Delaware Persons Have Improved\n Survivorship through Middle Age',
+     conf.int=F,col=myPalette,lty=c(1,1),lwd=5,
+     xlab='Lifespan (days)',ylab='Survivorship Probability',
+     mark.time=F)
+
+#legend
+
+legend(legend=c('Maryland','Delaware'),x='bottomleft',
+       lty=c(1,1),lwd=5,col=myPalette)
+```
